@@ -1,0 +1,199 @@
+#include <iostream>
+#include <iomanip>
+#include "opencv/cv.h"
+#include "opencv/highgui.h"
+#include "cvblob.h"
+#include <stdio.h> 
+#include <stdlib.h> 
+#include <conio.h> 
+#include <windows.h> 
+using namespace cvb;
+
+typedef struct key
+{
+	char c;
+	int x0;
+	int y0;
+	int x1;
+	int y1;
+};
+
+key g_keymap[] =
+{
+	{ '4', 525, 350, 588, 419 }, //摄像头检测不到
+	{ '5', 442, 345, 504, 414 }, //摄像头检测不到
+
+	{ '6', 467, 139, 530, 191 },
+	{ '7', 392, 135, 457, 190 },
+	{ '8', 316, 128, 377, 181 },
+	{ '9', 242, 124, 299, 176 },
+	{ '0', 171, 118, 225, 172 },
+
+
+	{ 'E', 528, 274, 590, 337 }, //位置检测不到
+
+	{ 'R', 560, 67, 613, 119 },
+	{ 'T', 487, 63, 550, 117 },
+	{ 'Y', 412, 65, 475, 120 },
+	{ 'U', 345, 66, 410, 118 },
+	{ 'I', 277, 65, 340, 118 },
+	{ 'O', 205, 68, 268, 119 },
+	{ 'P', 140, 69, 204, 120 },
+
+// 和摄像头位置有	
+	/*{ 'D', 504, 203, 567, 259 },
+	{ 'F', 424, 199, 489, 257 },
+	{ 'G', 348, 194, 410, 251 },
+	{ 'H', 266, 187, 329, 245 },
+	{ 'J', 192, 183, 251, 241 },
+	{ 'K', 117, 178, 171, 236 },
+	{ 'L', 42, 174, 92, 229 },
+	{ 'X', 543, 144, 605, 197 },*/
+	/*{ 'C', 467, 139, 530, 191 },
+	{ 'V', 392, 135, 457, 190 },
+	{ 'B', 316, 128, 377, 181 },
+	{ 'N', 242, 124, 299, 176 },
+	{ 'M', 171, 118, 225, 172 },*/
+	{ '-', 98, 114, 149, 166 },
+	{ '=', 26, 108, 73, 159 },
+	{ '_', 182, 62, 531, 127 },
+};
+
+int g_key_num = sizeof(g_keymap) / sizeof(key);
+
+int main()
+{
+	CvTracks tracks;                                           // 
+
+	cvNamedWindow("test", CV_WINDOW_AUTOSIZE);          // 在屏幕上创建一个窗口,窗口的名字是“red_object_tracking”
+
+	CvCapture *capture = cvCaptureFromCAM(0);                 //  初始化从摄像头中获取视频 视频的每一帧都放在capture上
+
+	cvGrabFrame(capture);                                     //  用于快速将视频帧读入内存
+
+	IplImage *img = cvRetrieveFrame(capture);                 //  对读入帧做所有必须的处理
+
+	CvSize imgSize = cvGetSize(img);                          //  获取某一帧图像的大小  是一个大小的获取 CvSize
+
+	IplImage *frame = cvCreateImage(imgSize, img->depth, img->nChannels);  //   创建首地址并分配存储空根据上面的获取到的大小创建空间而且新建一个帧是frame
+	//   后续的处理就是对于frame的处理
+
+	IplConvKernel* morphKernel = cvCreateStructuringElementEx(5, 5, 1, 1, CV_SHAPE_RECT, NULL);   // 创建结构元素 结构元素的列数  行数 水平偏移量
+	//  垂直偏移量 形状是长方形  指向结构元素的指针是一个平面数组
+
+	//unsigned int frameNumber = 0;
+	unsigned int blobNumber = 0;
+
+	bool quit = false;
+
+	while (!quit&&cvGrabFrame(capture))                                    //从摄像头或者视频文件中抓取帧为空或者退出了就结束循环
+	{
+		IplImage *img = cvRetrieveFrame(capture);                              //对于要读取的视频先进行一个处理从视频那里面获取一个img初始化一个图片
+
+		cvConvertScale(img, frame, 1, 0);                                     // img 是输入数组 frame是输出数组 1是比例因子 0是添加的缩放后得到的元素上
+
+		IplImage *segmentated = cvCreateImage(imgSize, 8, 1);                 // createimg 是用来创建首地址并分配存储空间
+		// 而创建一个帧是segmentated 对照着原来的imagesize  8是图像元素的深度
+		// 1是通道频道的数目
+
+		// Detecting red pixels:                            // 检测红色像素
+		// (This is very slow, use direct access better...) 
+		unsigned int j;
+		unsigned int i;
+		for (j = 0; j<imgSize.height; j++)               // 这个是高度 用J来表示
+		for (i = 0; i<imgSize.width; i++)
+		{
+			CvScalar c = cvGet2D(frame, j, i);                        // CvScalar是一个可以用来存放4个double数值的数组 一般是用来存放像素值 可以放四个通道
+			// frame 是输入数组 j和i是循环变量是基准是用来循环用的
+			double b = ((double)c.val[0]) / 255.;
+			double g = ((double)c.val[1]) / 255.;
+			double r = ((double)c.val[2]) / 255.;
+			// unsigned char f = 255*((r>0.2+g)&&(r>0.2+b));
+			// cvSet2D(segmentated, j, i, CV_RGB(f, f, f));
+			if (b>0.6 || g>0.6 || r>0.6)
+				cvSet2D(segmentated, j, i, CV_RGB(255, 255, 255));     // 设置了一个图片然后去处理那个过程
+			else
+				cvSet2D(segmentated, j, i, CV_RGB(0, 0, 0));          //根据rgb的数值来判断怎样去
+		}
+		//这是在对获取的图像进行处理的部分 对于某一个地方的值进行处理
+		cvMorphologyEx(segmentated, segmentated, NULL, morphKernel, CV_MOP_OPEN, 1);   // 更通用的形态学函数 是一个函数接口
+
+		cvShowImage("blackandwhite", segmentated);                                       // 显示这个segmentated 的内容
+
+		IplImage *labelImg = cvCreateImage(cvGetSize(frame), IPL_DEPTH_LABEL, 1);      // 新建一个image来实现
+
+		CvBlobs blobs;                                                                  //定义这样一个类 
+		unsigned int result = cvLabel(segmentated, labelImg, blobs);
+
+		cvFilterByArea(blobs, 500, 1000000);
+
+		cvRenderBlobs(labelImg, blobs, frame, frame, CV_BLOB_RENDER_BOUNDING_BOX);
+
+		cvUpdateTracks(blobs, tracks, 200., 5);
+
+		cvRenderTracks(tracks, frame, frame, CV_TRACK_RENDER_ID | CV_TRACK_RENDER_BOUNDING_BOX);
+
+		cvShowImage("cameratest", frame);           // 显示这个image根据这个frame
+
+		// print key   打印部分 在跟踪的时候没有结束的时候
+		for (CvTracks::const_iterator it = tracks.begin(); it != tracks.end(); ++it)
+		{
+			int xx = (int)it->second->centroid.x;
+			int yy = (int)it->second->centroid.y;
+			//std::cout << xx << ',' << yy << std::endl;
+
+			for (int i = 0; i<g_key_num; i++) //按键在某一个范围内的时候  这个时候是对按键进行处理
+			{
+				 
+				if (xx > g_keymap[i].x0 &&xx < g_keymap[i].x1 &&yy > g_keymap[i].y0 &&yy < g_keymap[i].y1)
+				{
+					std::cout << g_keymap[i].c << std::endl;
+					switch (g_keymap[i].c)
+					{
+					case '5': Beep(262, 300); break;
+					case 'Y': Beep(294, 300); break;
+					case 'U': Beep(330, 300); break;
+					case 'I': Beep(349, 300); break;
+					case 'O': Beep(392, 300); break;
+					case 'P': Beep(440, 300); break;
+					case '6': Beep(494, 300); break;
+					default:break;
+					}
+					break;
+				}
+			}
+		}
+
+		cvReleaseImage(&labelImg);
+		cvReleaseImage(&segmentated);
+
+		char k = cvWaitKey(10) & 0xff;  // 10ms的频率下不停的刷新图像 k为当前的值
+		switch (k)
+		{
+		case 27:
+		case 'q':
+		case 'Q':
+			quit = true;
+			break;
+			//case 's':
+			//case 'S':
+			//	//在电脑键盘上输入s的时候的作用是如下  看不懂 这一部分可以不要
+			//	for (CvBlobs::const_iterator it = blobs.begin(); it != blobs.end(); ++it)
+			//	{
+			//		std::stringstream filename;
+			//		filename << "redobject_blob_" << std::setw(5) << std::setfill('0') << blobNumber << ".png";
+			//		cvSaveImageBlob(filename.str().c_str(), img, it->second);
+			//		blobNumber++;
+			//		std::cout << filename.str() << " saved!" << std::endl;
+			//	}
+			//	break;
+		}
+		cvReleaseBlobs(blobs);
+		//frameNumber++;
+	}
+	//销毁阶段 
+	cvReleaseStructuringElement(&morphKernel);  // 先创建的window，然后创建的frame，再创建的window
+	cvReleaseImage(&frame);
+	cvDestroyWindow("");
+	return 0;
+} 
